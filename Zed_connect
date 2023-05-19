@@ -1,0 +1,201 @@
+import pyzed.sl as sl
+import cv2
+from project.mysql_connect import *
+from project.mysql_exit import *
+
+
+class main():
+    def __init__(self):
+        self.current_people = []
+        self.camera_person = []
+        self.potential_person = []
+
+    def run(self):
+        # Create a Camera object
+
+        zed = sl.Camera()
+
+        # Create a InitParameters object and set configuration parameters
+        init_params = sl.InitParameters()
+        init_params.camera_resolution = sl.RESOLUTION.HD720  # Use HD720 video mode
+        init_params.depth_mode = sl.DEPTH_MODE.PERFORMANCE
+        init_params.coordinate_units = sl.UNIT.METER
+        init_params.sdk_verbose = True
+
+        # Open the camera
+        err = zed.open(init_params)
+        if err != sl.ERROR_CODE.SUCCESS:
+            exit(1)
+
+        image_zed = sl.Mat(zed.get_camera_information().camera_resolution.width,
+                           zed.get_camera_information().camera_resolution.height, sl.MAT_TYPE.U8_C4)
+        # Retrieve data in a numpy array with get_data()
+        image_ocv = image_zed.get_data()
+
+        obj_param = sl.ObjectDetectionParameters()
+        obj_param.enable_tracking = True
+        obj_param.image_sync = True
+        obj_param.enable_mask_output = True
+
+        zed_pose = sl.Pose()
+
+        camera_infos = zed.get_camera_information()
+        if obj_param.enable_tracking:
+            positional_tracking_param = sl.PositionalTrackingParameters()
+            # positional_tracking_param.set_as_static = True
+            positional_tracking_param.set_floor_as_origin = True
+            zed.enable_positional_tracking(positional_tracking_param)
+
+        print("Object Detection: Loading Module...")
+
+        err = zed.enable_object_detection(obj_param)
+        if err != sl.ERROR_CODE.SUCCESS:
+            print(repr(err))
+            zed.close()
+            exit(1)
+
+        objects = sl.Objects()
+        obj_runtime_param = sl.ObjectDetectionRuntimeParameters()
+        obj_runtime_param.detection_confidence_threshold = 40
+
+        while zed.grab() == sl.ERROR_CODE.SUCCESS:
+            err = zed.retrieve_objects(objects, obj_runtime_param)
+
+            zed.retrieve_image(image_zed, sl.VIEW.LEFT)
+            # Use get_data() to get the numpy array
+            image_ocv = image_zed.get_data()
+            # Display the left image from the numpy array
+            cv2.imshow("Image", image_ocv)
+
+            if objects.is_new:
+                obj_array = objects.object_list
+                print(str(len(obj_array)) + " Object(s) detected\n")
+                if len(obj_array) > 0:
+
+                    # print(zed.get_position(obj_array[0]))
+                    '''print(zed.get_positional_tracking_parameters())
+
+                    print("First object attributes:")
+                    print(" Label '" + repr(first_object.label) + "' (conf. " + str(int(first_object.confidence)) + "/100)")
+                    if obj_param.enable_tracking:
+                        print(" Tracking ID: " + str(int(first_object.id)) + " tracking state: " + repr(
+                            first_object.tracking_state) + " / " + repr(first_object.action_state))
+                    position = first_object.position
+                    velocity = first_object.velocity
+                    dimensions = first_object.dimensions
+                    print(" 3D position: [{0},{1},{2}]\n Velocity: [{3},{4},{5}]\n 3D dimentions: [{6},{7},{8}]".format(
+                        position[0], position[1], position[2], velocity[0], velocity[1], velocity[2], dimensions[0],
+                        dimensions[1], dimensions[2]))
+                    if first_object.mask.is_init():
+                        print(" 2D mask available")
+
+                    print(" Bounding Box 2D ")
+                    bounding_box_2d = first_object.bounding_box_2d
+                    for it in bounding_box_2d:
+                        print("    " + str(it), end='')'''
+                    found = []
+                    for p in obj_array:
+                        if str(p.label) == "Person":
+                            found.append(False)
+                        else:
+                            found.append(True)
+                    obj_list = []
+                    for p in range(0, len(obj_array)):
+                        obj = obj_array[p]
+                        if str(obj.label) == "Person":
+                            obj_list.append(obj.id)
+                    print(obj_list)
+
+
+                    for i in range(0, len(self.current_people )):
+                        if len(self.camera_person) != len(self.current_people):
+                            if len(obj_list) != 0:
+                                if self.current_people[i]['id'] not in obj_list:
+                                    self.camera_person[i] = False
+                                    print(i)
+                                else:
+                                    self.camera_person.append(True)
+                            print(self.camera_person)
+
+
+
+
+                    for person in self.current_people:
+                        for i, self.potential_person in enumerate(obj_array):
+                           if person['label'] == "Person":
+                                # print(f"our person: {person['id']}, their person: {potential_person.id}")
+                                if person['id'] == self.potential_person.id:
+                                    # already exits, need to add in the new position to this object in the array
+                                    person['position'].append(self.potential_person.bounding_box_2d)
+                                    found[i] = True
+                                    # print(f"updated person: {i}")
+
+                    for i, check in enumerate(found):
+                        if not found[i]:
+                            new_person = obj_array[i]
+                            # need to add this new person
+                            self.current_people.append({'id': new_person.id, 'label': str(new_person.label),
+                                                        'position': [new_person.bounding_box_2d]})
+
+
+
+                    for i in range(0, len(self.camera_person)-1):
+                        print(self.camera_person[i])
+                        if self.camera_person[i] == False:
+                            self.connect(self.current_people[i])
+                            print(f"Deleted {self.current_people[i]}")
+                            self.current_people.pop(i)
+                            self.camera_person.pop(i)
+                            break
+
+
+
+
+
+
+
+            cv2.waitKey(800)
+            '''input('\nPress enter to continue: ')'''
+
+
+        # Close the camera
+        zed.close()
+
+
+    def connect(self, New_list: list):
+        """print("here")
+        print(self.current_people[0]["position"][0][2][1])
+        print(";sd")
+        print(self.current_people[0]["position"][-1][0])
+        print(self.current_people[0]["position"][-1][1])"""
+        New_list = [New_list]
+        print(f"new list {New_list}")
+        """Firstposition_x = self.current_people[0]["position"][0][0][1]
+                Firstposition_y = self.current_people[0]["position"][0][1][1]
+                Firstposition_z = self.current_people[0]["position"][0][2][1]
+                Firstposition_a = self.current_people[0]["position"][0][-1][1]"""
+        for i in range(0, len(New_list)):
+            print(f"new list {i}")
+
+            Secondposition_x= New_list[i]["position"][-1][0][1]
+            print(Secondposition_x)
+            Secondposition_y = New_list[i]["position"][-1][1][1]
+            Secondposition_z = New_list[i]["position"][-1][2][1]
+            Secondposition_a =New_list[i]["position"][-1][-1][1]
+
+            if Secondposition_x and Secondposition_y < 200:
+                print("exited")
+                mysql_connecter_enter(New_list[i])
+            if Secondposition_a and Secondposition_z > 600:
+                print("entered")
+                mysql_connecter_exit(New_list[i])
+            New_list.pop(i)
+
+
+
+
+
+
+camera = main()
+camera.run()
+
