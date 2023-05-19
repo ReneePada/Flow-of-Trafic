@@ -1,0 +1,47 @@
+import mysql.connector
+
+
+
+def mysql_connecter_enter(my_list : list):
+    mydb = mysql.connector.connect(
+        user='root',
+        password='dennisiscool',
+        host='127.0.0.1',
+        port=3306,
+        database='senior_research2',
+        auth_plugin='mysql_native_password')
+
+
+    print("here")
+    mycursor = mydb.cursor()
+
+    sql = "SELECT entryID FROM senior_research2.people_enters ORDER BY entryID DESC LIMIT 1;"
+
+    mycursor.execute(sql)
+
+    myresult = mycursor.fetchall()
+    print("made it")
+
+    print(len(my_list))
+    print("almost")
+    my_list = [my_list]
+    for i in  range(0,len(my_list)):
+        print(i)
+        print(f"out of range {my_list[i]['position'][-1]}")
+        position = (my_list[i]['position'][-1])
+        position = str(position)
+        val = (my_list[i]['id'],my_list[i]['label'],position)
+        sql1= "INSERT INTO people_enters (entryPerson, entryLabel, entryPosition) VALUES (%s,%s,%s);"
+        mycursor.execute(sql1,val)
+    print(sql1)
+
+
+    mydb.commit()
+
+    for x in myresult:
+      print(x)
+
+    print(mycursor.rowcount, "was inserted.")
+
+#fake_list = [{'id': 2, 'label': 'Person', 'position': '[array([[ 44., 260.],[706., 260.],[706., 657.],[ 44., 657.]])'}, {'id': 999 ,'label': 'Person', 'position': '[array([[ 44., 260.], [706., 260.],[706., 657.],[ 44., 657.]])'}]
+# to test connection
